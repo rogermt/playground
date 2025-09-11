@@ -1,0 +1,2448 @@
+<?xml version="1.0" encoding="UTF-8"?><TEI xmlns="http://www.tei-c.org/ns/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xsi:schemaLocation="http://www.tei-c.org/ns/1.0 https://raw.githubusercontent.com/kermitt2/grobid/master/grobid-home/schemas/xsd/Grobid.xsd">
+	<teiHeader xml:lang="en">
+		<fileDesc>
+			<titleStmt>
+				<title level="a" type="main">Neural Sinkhorn Gradient Flow</title>
+			</titleStmt>
+			<publicationStmt>
+				<publisher/>
+				<availability status="unknown">
+					<licence/>
+				</availability>
+				<date type="published" when="2024-01-25">25 Jan 2024</date>
+			</publicationStmt>
+			<sourceDesc>
+				<biblStruct>
+					<analytic>
+						<author>
+							<persName><forename type="first">Huminhao</forename><surname>Zhu</surname></persName>
+							<email>zhuhuminhao@zju.edu.cn</email>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computer Science and Technology</orgName>
+								<orgName type="institution">Zhejiang University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Fangyikang</forename><surname>Wang</surname></persName>
+							<email>wangfangyikang@zju.edu.cn</email>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computer Science and Technology</orgName>
+								<orgName type="institution">Zhejiang University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Chao</forename><surname>Zhang</surname></persName>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computer Science and Technology</orgName>
+								<orgName type="institution">Zhejiang University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Hanbin</forename><surname>Zhao</surname></persName>
+							<email>zhaohanbin@zju.edu.cn</email>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computer Science and Technology</orgName>
+								<orgName type="institution">Zhejiang University</orgName>
+							</affiliation>
+						</author>
+						<author>
+							<persName><forename type="first">Hui</forename><surname>Qian</surname></persName>
+							<email>qianhui@zju.edu.cn</email>
+							<affiliation key="aff0">
+								<orgName type="department">College of Computer Science and Technology</orgName>
+								<orgName type="institution">Zhejiang University</orgName>
+							</affiliation>
+						</author>
+						<title level="a" type="main">Neural Sinkhorn Gradient Flow</title>
+					</analytic>
+					<monogr>
+						<imprint>
+							<date type="published" when="2024-01-25">25 Jan 2024</date>
+						</imprint>
+					</monogr>
+					<idno type="MD5">2D9A011F70B7E2C0E7E66A71E32CEF87</idno>
+					<idno type="arXiv">arXiv:2401.14069v1[cs.LG]</idno>
+				</biblStruct>
+			</sourceDesc>
+		</fileDesc>
+		<encodingDesc>
+			<appInfo>
+				<application version="0.8.2-SNAPSHOT" ident="GROBID" when="2025-09-04T04:56+0000">
+					<desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+					<ref target="https://github.com/kermitt2/grobid"/>
+				</application>
+			</appInfo>
+		</encodingDesc>
+		<profileDesc>
+			<abstract>
+<div xmlns="http://www.tei-c.org/ns/1.0"><p>Wasserstein Gradient Flows (WGF) with respect to specific functionals have been widely used in the machine learning literature. Recently, neural networks have been adopted to approximate certain intractable parts of the underlying Wasserstein gradient flow and result in efficient inference procedures. In this paper, we introduce the Neural Sinkhorn Gradient Flow (NSGF) model, which parametrizes the time-varying velocity field of the Wasserstein gradient flow w.r.t. the Sinkhorn divergence to the target distribution starting a given source distribution. We utilize the velocity field matching training scheme in NSGF, which only requires samples from the source and target distribution to compute an empirical velocity field approximation. Our theoretical analyses show that as the sample size increases to infinity, the mean-field limit of the empirical approximation converges to the true underlying velocity field. To further enhance model efficiency on high-dimensional tasks, a two-phase NSGF++ model is devised, which first follows the Sinkhorn flow to approach the image manifold quickly (≤ 5 NFEs) and then refines the samples along a simple straight flow. Numerical experiments with synthetic and real-world benchmark datasets support our theoretical results and demonstrate the effectiveness of the proposed methods.</p></div>
+			</abstract>
+		</profileDesc>
+	</teiHeader>
+	<text xml:lang="en">
+		<body>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="1">Introdution</head><p>The Wasserstein Gradient Flow (WGF) with respect to certain specific functional objective F (denoted as F Wasserstein gradient flow) is a powerful tool for solving optimization problems over the Wasserstein probability space. Since the seminal work of <ref type="bibr" target="#b62">[Jordan et al., 1998</ref>] which shows that the Fokker-Plank equation is the Wasserstein gradient flow with respect to the free energy, Wasserstein gradient flow w.r.t. different functionals have been widely used in various machine learning tasks such as Bayesian inference <ref type="bibr">[Zhang et al., 2021a]</ref>, reinforcement learning <ref type="bibr">[Zhang et al., 2021b]</ref>, and mean-field games <ref type="bibr" target="#b120">[Zhang and Katsoulakis, 2023]</ref>.</p><p>One recent trend in the Wasserstein gradient flow literature is to develop efficient generative modeling methods <ref type="bibr" target="#b42">[Gao et al., 2019;</ref><ref type="bibr" target="#b44">Gao et al., 2022;</ref><ref type="bibr" target="#b10">Ansari et al., 2021;</ref><ref type="bibr" target="#b81">Mokrov et al., 2021;</ref><ref type="bibr" target="#b4">Alvarez-Melis et al., 2022;</ref><ref type="bibr" target="#b14">Bunne et al., 2022;</ref><ref type="bibr" target="#b32">Fan et al., 2022]</ref>. In general, these methods mimic the Wasserstein gradient flow with respect to a specific distribution metric, driving a source distribution towards a target distribution. Neural networks are typically employed to approximate the computationally challenging components of the underlying Wasserstein gradient flow such as the timedependent transport maps. During the training process of these methods, it is common to require samples from the target distribution. After the training process, an inference procedure is often employed to generate new samples from the target distribution This procedure involves iteratively transporting samples from the source distribution with the assistance of the trained neural network. Based on the chosen metric, these methods can be categorized into two main types.</p><p>Divergences Between Distributions With Exact Same Supports. The first class of widely used metrics is the fdivergence, such as the Kullback-Leibler divergence and the Jensen-Shannon divergence. These divergences are defined based on the density ratio between two distributions and are only well-defined when dealing with distributions that have exactly the same support. Within the scope of f-divergence Wasserstein gradient flow generative models, neural networks are commonly utilized to formulate density-ratio estimators, as demonstrated by <ref type="bibr" target="#b42">[Gao et al., 2019;</ref><ref type="bibr" target="#b10">Ansari et al., 2021]</ref> and <ref type="bibr" target="#b54">[Heng et al., 2022]</ref>. However, as one can only access finite samples from target distributions in the training process, the support shift between the sample collections from the compared distributions may cause significant approximation error in the density-ratio estimators <ref type="bibr" target="#b18">[Choi et al., 2022</ref>]. An alternative approach, proposed by <ref type="bibr" target="#b32">[Fan et al., 2022]</ref>, circumvents these limitations by employing a dual variational formulation of the f-divergence. In this framework, two networks are employed to approximate the optimal variational function and the transport maps. These two components are optimized alternately. It's imperative to highlight that the non-convex and non-concave characteristics of their min-max objective can render the training inherently unstable <ref type="bibr" target="#b60">[Hsieh et al., 2021]</ref>.</p><p>Divergences Between Distributions With Possible Different Supports. Another type of generative Wasserstein gradient flow model employs divergences that are welldefined for distributions with possible different supports. This includes free energy fuctionals <ref type="bibr" target="#b81">[Mokrov et al., 2021</ref>;  <ref type="bibr" target="#b14">Bunne et al., 2022]</ref>, the kernel-based metrics such as the Maximum-Mean/Sobolev Discrepancy <ref type="bibr" target="#b85">[Mroueh et al., 2019;</ref><ref type="bibr" target="#b83">Mroueh and Rigotti, 2020]</ref> and sliced-Wasserstein distance <ref type="bibr" target="#b75">[Liutkus et al., 2019;</ref><ref type="bibr" target="#b30">Du et al., 2023]</ref>. As these divergences can be efficiently approximated with samples, neural networks are typically used to directly model the transport maps used in the inference procedure. In Wasserstein gradient flow methods, input convex neural networks (ICNNs, <ref type="bibr" target="#b8">[Amos et al., 2017]</ref>) are commonly used to approximate the transport map. However, recently, several works <ref type="bibr" target="#b67">[Korotin et al., 2021]</ref> discuss the poor expressiveness of ICNNs architecture and show that it would result in poor performance in high-dimension applications. Besides, the Maximum-Mean/Sobolev discrepancy Wasserstein gradient flow models are usually hard to train and are easy to trapped in poor local optima in practice <ref type="bibr" target="#b12">[Arbel et al., 2019]</ref>, since the kernel-based divergences are highly sensitive to the parameters of the kernel function <ref type="bibr" target="#b69">[Li et al., 2017;</ref><ref type="bibr" target="#b118">Wang et al., 2018]</ref>. <ref type="bibr" target="#b75">[Liutkus et al., 2019;</ref><ref type="bibr" target="#b30">Du et al., 2023]</ref> consider sliced-Wasserstein WGF to build nonparametric generative Models which do not achieve high generation quality, it is an interesting work on how to combine sliced-Wasserstein WGF and neural network methods.</p><p>Contribution. In this paper, we investigate the Wasserstein gradient flow with respect to the Sinkhorn divergence, which is categorized under the second type of divergence and does not necessitate any kernel functions. We introduce the Neural Sinkhorn Gradient Flow (NSGF) model, which parametrizes the time-varying velocity field of the Sinkhorn Wasserstein gradient flow from a specified source distribution. The NSGF employs a velocity field matching scheme that demands only samples from the target distribution to calculate empirical velocity field approximations. Our theoretical analyses show that as the sample size approaches infinity, the mean-field limit of the empirical approximation converges to the true velocity field of the Sinkhorn Wasserstein gradient flow. Given distinct source and target data samples, our NSGF can be harnessed across a wide range of machine learning applications, including unconditional/conditional image generation, style transfer, and audiotext translation. To further enhance model efficiency on highdimensional image datasets, a two-phase NSGF++ model is devised, which first follows the Sinkhorn flow to approach the image manifold quickly (≤ 5 NFEs) and then refine the samples along a simple straight flow. A novel phase-transition time predictor is proposed to transfer between the two phases.</p><p>We empirically validate NSGF on low-dimensional 2D data and NSGF++ on benchmark images (MNIST, CIFAR-10).</p><p>Our findings indicate that our models can be trained to yield commendable results in terms of generation cost and sample quality, surpassing the performance of the neural Wasserstein gradient flow methods previously tested on CIFAR-10, to the best of our knowledge.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="2">Related Works</head><p>Sinkhorn Divergence in Machine Learning. Originally introduced in the domain of optimal transport, the Sinkhorn divergence emerged as a more computationally tractable alternative to the classical Wasserstein distance <ref type="bibr">[Cuturi, 2013;</ref><ref type="bibr" target="#b91">Peyré et al., 2017;</ref><ref type="bibr" target="#b38">Feydy et al., 2019]</ref>. Since its inception, Sinkhorn divergence has found applications across a range of machine learning tasks, including domain adaptation <ref type="bibr" target="#b0">[Alaya et al., 2019;</ref><ref type="bibr" target="#b65">Komatsu et al., 2021]</ref>, Sinkhorn barycenter <ref type="bibr" target="#b77">[Luise et al., 2019;</ref><ref type="bibr" target="#b104">Shen et al., 2020]</ref> and color transfer <ref type="bibr" target="#b87">[Pai et al., 2021]</ref>. Indeed, it has already been extended to singlestep generative modeling methods, such as the Sinkhorn GAN and VAE <ref type="bibr" target="#b48">[Genevay et al., 2018;</ref><ref type="bibr" target="#b27">Deja et al., 2020;</ref><ref type="bibr" target="#b89">Patrini et al., 2020]</ref>. However, to the best of our knowledge, it has yet to be employed in developing efficient generative Wasserstein gradient flow models.</p><p>Neural ODE/SDE Based Diffusion Models. Recently, diffusion models, as a class of Neural ODE/SDE Based generative methods have achieved unprecedented success, which also transforms a simple density to the target distribution, iteratively <ref type="bibr" target="#b108">[Song and Ermon, 2019;</ref><ref type="bibr" target="#b58">Ho et al., 2020;</ref><ref type="bibr" target="#b110">Song et al., 2021]</ref>. Typically, each step of diffusion models only progresses a little by denoising a simple Gaussian noise, while each step in WGF models follows the most informative direction (in a certain sense). Hence, diffusion models usually have a long inference trajectory. In recent research undertakings, there has been a growing interest in exploring more informative steps within diffusion models. Specifically, flow matching methods <ref type="bibr" target="#b71">[Lipman et al., 2023;</ref><ref type="bibr" target="#b73">Liu et al., 2023;</ref><ref type="bibr" target="#b2">Albergo and Vanden-Eijnden, 2023]</ref> establish correspondence between the source and target via optimal transport, subsequently crafting a probability path by directly linking data points from both ends. Notably, when the source and target are both Gaussians, their path is actually a Wasserstein gradient flow. However, this property does not consistently hold for general data probabilities. Moreover, <ref type="bibr" target="#b114">[Tong et al., 2023;</ref><ref type="bibr" target="#b95">Pooladian et al., 2023]</ref> consider calculating the minibatch op-timal transport map to guide data points connecting. Besides, <ref type="bibr" target="#b25">[Das et al., 2023]</ref> consider the shortest forward diffusion path for the Fisher metric and <ref type="bibr" target="#b102">[Shaul et al., 2023]</ref> explore the conditional Gaussian probability path based on the principle of minimizing the Kinetic Energy. Nonetheless, a commonality among many of these methods is their reliance on Gaussian paths for theoretical substantiation, thereby constraining the broader applicability of these techniques within real-world generative modeling.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3">Preliminaries</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.1">Notations</head><p>We denote x = (x 1 , • • • , x d ) ∈ R d and X ⊂ R d as a vector and a compact ground set in R d , respectively. For a given point x ∈ X , ∥x∥ p := ( i x p i )</p><p>1 p denotes the p-norm on euclidean space, and δ x stands for the Dirac (unit mass) distribution at point x ∈ X . P 2 (X ) denotes the set of probability measures on X with finite second moment and C(X ) denotes the space of continuous functions on X . For a given functional F(•) : P 2 (X ) → R, δF (µt)  δµ (•) : R d → R denotes its first variation at µ = µ t . Besides, we use ∇ and ∇ • () to denote the gradient and the divergence operator, respectively.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.2">Wasserstein distance and Sinkhorn divergence</head><p>We first introduce the background of Wasserstein distance. Given two probability measures µ, ν ∈ P 2 (X ), the p-Wasserstein distance W p (µ, ν) : P 2 (X ) × P 2 (X ) → R + is defined as:</p><formula xml:id="formula_0">W p (µ, ν) = inf π∈Π(µ,ν) X ×X ∥x -y∥ p dπ(x, y) 1 p ,<label>(1)</label></formula><p>where Π(µ, ν) denotes the set of all probability couplings π with marginals µ and ν. The W p distance aims to find a coupling π so as to minimize the cost function ∥x -y∥ p of moving a probability mass from µ to ν. It has been demonstrated that the p-Wasserstein distance is a valid metric on P 2 (X ), and (P 2 (X ), W p ) is referred to as the Wasserstein probability space <ref type="bibr" target="#b116">[Villani and others, 2009]</ref>.</p><p>Note that directly calculating W p is computationally expensive, especially for high dimensional problems <ref type="bibr">[Santambrogio, 2015]</ref>. Consequently, the entropy-regularized Wasserstein distance <ref type="bibr">[Cuturi, 2013]</ref> is proposed to approximate equation equation 1 by regularizing the original problem with an entropy term: Definition 1. The entropy-regularized Wasserstein distance is formally defined as:</p><formula xml:id="formula_1">Wp,ε(µ, ν) = inf π∈Π(µ,ν) X ×X</formula><p>∥x -y∥ p dπ(x, y)</p><formula xml:id="formula_2">1 p + εKL(π|µ ⊗ ν) ,<label>(2)</label></formula><p>where ε &gt; 0 is a regularization coefficient, µ ⊗ ν denotes the product measure, i.e., µ ⊗ ν(x, y) = µ(x)ν(y), and KL(π|µ⊗ν) denotes the KL-divergence between π and µ⊗ν.</p><p>Generally, the computational cost of W p,ε is much lower than W p , and can be efficiently calculated with Sinkhorn algorithms <ref type="bibr">[Cuturi, 2013]</ref>. Without loss of generality, we fix p = 2 and abbreviate W 2,ε := W ε for ease of notion in the whole paper. According to Fenchel-Rockafellar theorem, the entropy-regularized Wasserstein problem W ε equation 2 has an equivalent dual formulation, which is given as follows <ref type="bibr" target="#b91">[Peyré et al., 2017]</ref>:</p><formula xml:id="formula_3">W ε (µ, ν) = max f,g∈C(X ) ⟨µ, f ⟩ + ⟨ν, g⟩ -ε µ ⊗ ν, exp 1 ε (f ⊕ g -C) -1 ,<label>(3)</label></formula><p>where C is the cost function in equation 2 and f ⊕ g is the tensor sum: (x, y) ∈ X 2 → f (x) + g(y). The maximizers f µ,ν and g µ,ν of equation 3 are called the W ε -potentials of W ε (µ, ν). The following lemma states the optimality condition for the W ε -potentials: Lemma 1. (Optimality <ref type="bibr">[Cuturi, 2013]</ref>) The W ε -potentials (f µ,ν , g µ,ν ) exist and are unique (µ, ν)-a.e. up to an additive constant (i.e. ∀K ∈ R, (f µ,ν + K, g µ,ν -K) is optimal). Moreover,</p><formula xml:id="formula_4">W ε (µ, ν) = ⟨µ, f µ,ν ⟩ + ⟨ν, g µ,ν ⟩. (<label>4</label></formula><formula xml:id="formula_5">)</formula><p>We describe such the method in Appendix A for completeness. Note that, although computationally more efficient than the W p distance, the W ε distance is not a true metric, as there exists µ ∈ P 2 (X ) such that W ε (µ, µ) ̸ = 0 when ε ̸ = 0, which restricts the applicability of W ε . As a result, the following Sinkhorn divergence S ε (µ, ν) : P 2 (X )×P 2 (X ) → R is proposed <ref type="bibr" target="#b91">[Peyré et al., 2017]</ref>: Definition 2. Sinkhorn divergence:</p><formula xml:id="formula_6">S ε (µ, ν) = W ε (µ, ν) - 1 2 (W ε (µ, µ) + W ε (ν, ν)) .<label>(5)</label></formula><p>S ε (µ, ν) is nonnegative, bi-convex thus a valid metric on P 2 (X ) and metricize the convergence in law. Actually S ε (µ, ν) interpolates the Wasserstein distance (ϵ → 0) and the Maximum Mean Discrepancy (ϵ → ∞) <ref type="bibr" target="#b38">[Feydy et al., 2019]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="3.3">Gradient flows</head><p>Consider an optimization problem over P 2 (X ):</p><formula xml:id="formula_7">min µ∈P2(X ) F(µ) := D(µ|µ * ). (<label>6</label></formula><formula xml:id="formula_8">)</formula><p>where µ * is the target distribution, D is the divergence we choose. We consider now the problem of transporting mass from an initial distribution µ 0 to a target distribution µ * , by finding a continuous probability path µ t starting from µ 0 = µ that converges to µ * while decreasing F(µ t ). To solve this optimization problem, one can consider a descent flow of F(µ) in the Wasserstein space, which transports any initial distribution µ 0 towards the target distribution µ * . Specifically, the descent flow of F(µ) is described by the following continuity equation <ref type="bibr" target="#b6">[Ambrosio et al., 2005;</ref><ref type="bibr" target="#b116">Villani and others, 2009;</ref><ref type="bibr">Santambrogio, 2017]</ref>:</p><formula xml:id="formula_9">∂µ t (x) ∂t = -∇ • (µ t (x)v t (x)).<label>(7)</label></formula><p>where v µt : X → X is a velocity field that defines the direction of position transportation. To ensure a descent of F(µ t ) over time t, the velocity field v µt should satisfy the following inequality ( <ref type="bibr" target="#b6">[Ambrosio et al., 2005]</ref>):</p><formula xml:id="formula_10">dF(µ t ) dt = ⟨∇ δF(µ t ) δµ , v t ⟩dµ t ≤ 0.<label>(8)</label></formula><p>A straightforward choice of v t is v t = -∇ δF (µt) δµ , which is actually the steepest descent direction of F(µ t ). When we select this v t , we refer to the aforementioned continuous equation as the Wasserstein gradient flow of F. We give the definition of the first variation in the appendix for the sake of completeness of the article.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4">Methodology</head><p>In this section, we first introduce the Sinkhorn Wasserstein gradient flow and investigate its convergence properties. Then, we develop our Neural Sinkhorn Gradient Flow model, which consists of a velocity field matching training procedure and a velocity field guided inference procedure. Moreover, we theoretically show that the mean-field limit of the empirical approximation used in the training procedure converges to the true velocity field of the Sinkhorn Wasserstein gradient flow.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.1">Sinkhorn Wasserstein gradient flow</head><p>Based on the definition of the Sinkhorn divergence, we construct our Sinkhorn objective F ε (•) = S ε (•, µ * ), where µ * denotes the target distribution. The following theorem gives the first variation of the Sinkhorn objective. Theorem 1. (First variation of the Sinkhorn objective <ref type="bibr" target="#b77">[Luise et al., 2019]</ref></p><formula xml:id="formula_11">) Let ε &gt; 0. Let (f µ,µ * , g µ,µ * ) be the W ε -potentials of W ε (µ, µ * ) and (f µ,µ , g µ,µ ) be the W ε - potentials of W ε (µ, µ). The first variation of the Sinkhorn objective F ε is δF ε δµ = f µ,µ * -f µ,µ .<label>(9)</label></formula><p>According to Theorem 1, we can construct the Sinkhorn Wasserstein gradient flow by setting the velocity field v t in the continuity equation equation 7 as v Fε µt = -∇ δFε(µt) δµt = ∇f µt,µt -∇f µt,µ * . Proposition 1. Consider the Sinkhorn Wasserstein gradient flow described by the following continuity equation:</p><formula xml:id="formula_12">∂µ t (x) ∂t = -∇ • (µ t (x)(∇f µt,µt (x) -∇f µt,µ * (x))). (<label>10</label></formula><formula xml:id="formula_13">)</formula><p>The following local descending property of F ε holds:</p><formula xml:id="formula_14">dF ε (µ t ) dt = -∥∇f µt,µt (x) -∇f µt,µ * (x)∥ 2 dµ t ,<label>(11)</label></formula><p>where the r.h.s. equals 0 if and only if µ t = µ * .</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.2">Velocity-fields Matching</head><p>We now present our NSGF method, the core of which lies in training a neural network to approximate the time-varying velocity field v Fε µt induced by Sinkhorn Wasserstein gradient flow. Given a target probability density path µ t (x) and it's corresponding velocity field v Sε µt , which generates µ t (x), we define the velocity field matching objective as follows:</p><formula xml:id="formula_15">min θ E t∼[0,T ],x∼µt v θ (x, t) -v Sε µt (x) 2 . (<label>12</label></formula><formula xml:id="formula_16">)</formula><p>To construct our algorithm, we utilize independently and identically distributed (i.i.d) samples denoted as {Y i } n i=1 ∈ R d , which are drawn from an unknown target distribution µ * a common practice in the field of generative modeling. Given the current set of samples { Xt i } n i=1 ∼ µ t , our method calculates the velocity field using the W ε -potentials (Lemma 1) f μt,μ * and f μt,μt based on samples. Here, μt and μ * represent discrete Dirac distributions.</p><p>Remark 1. In the discrete case, W ε -potentials equation 1 can be computed by a standard method in <ref type="bibr" target="#b46">[Genevay et al., 2016]</ref>. In practice, we use the efficient implementation of the Sinkhorn algorithm with GPU acceleration from the Geom-Loss package <ref type="bibr" target="#b38">[Feydy et al., 2019]</ref>.</p><p>The corresponding finite sample velocity field approximation can be computed as follows:</p><formula xml:id="formula_17">vFε μt ( Xt i ) = ∇ Xt i f μt,μt ( Xt i ) -∇ Xt i f μt,μ * ( Xt i ).<label>(13)</label></formula><p>Subsequently, we derive the particle formulation corresponding to the flow formulation equation 10.</p><formula xml:id="formula_18">d Xt i = vFϵ μt Xt i dt, i = 1, 2, • • • n.<label>(14)</label></formula><p>In the following proposition, we investigate the mean-field limit of the particle set</p><formula xml:id="formula_19">{ Xt i } i=1,••• ,M . Theorem 2.</formula><p>(Mean-field limits.) Suppose the empirical distribution μ0 of M particles weakly converges to a distribution µ 0 when M → ∞. Then, the path of equation equation 14 starting from μ0 weakly converges to a solution of the following partial differential equation starting from µ 0 when M → ∞:</p><formula xml:id="formula_20">∂µ t (x) ∂t = -∇ • (µ t (x)∇ δF ε (µ t ) δµ t ). (<label>15</label></formula><formula xml:id="formula_21">)</formula><p>which is actually the gradient flow of Sinkhorn divergence F ε in the Wasserstein space.</p><p>The following proposition shows that the goal of the velocity field matching objective equation 12 can be regarded as approximating the steepest local descent direction with neural networks.</p><p>Proposition 2. (Steepest local descent direction.) Consider the infinitesimal transport T (x) = x + λϕ. The Fréchet derivative under this particular perturbation,</p><formula xml:id="formula_22">d dλ F ε (T # µ)| λ=0 = lim λ→0 F ε (T # µ) -F ε (µ) λ = X ∇f µ,µ * (x)ϕ(x)dµ - X ∇f µ,µ (x)ϕ(x)dµ,<label>(16)</label></formula><p>and the steepest local descent direction is ϕ </p><formula xml:id="formula_23">= ∇f µ,µ * (x)-fµ,µ(x) ∥∇f µ,µ * (x)-fµ,µ(x)∥ .</formula><formula xml:id="formula_24">/ X0 i ∼ µ 0 , Ỹi ∼ µ * , i = 1, 2, • • • n. for t = 0, 1, • • • T do calculatef μt,μt Xt i , f μt,μ * Xt i . vFϵ µt Xt i = ∇f μt,μt Xt i -∇f μt,μ * Xt i . Xt+1 i = Xt i + η vFϵ t Xt i . store all Xt i , vFϵ t Xt i pair into the pool, i = 1, 2, • • • n.</formula><p>/ * velocity field matching * / while Not convergence do from trajectory pool sample pair Xt i , vFϵ </p><formula xml:id="formula_25">t Xt i . L(θ) = v θ ( Xt i , t) -vFε µt Xt i 2 , θ ← θ -γ∇ θ L (θ</formula><formula xml:id="formula_26">i ∼ μ0 for t = 0, 1, • • • T do Xt+1 i = Xt i + ηv θ Xt i , t , i = 1, 2, • • • n. Output: XT</formula><p>i as the results.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.3">Minibatch Sinkhorn Gradient Flow and Experience Replay</head><p>According to Theorem 2, we construct our NSGF method based on minibatches. We utilize a set of discrete targets, denoted as {Y i } n i=1 , where n represents the batch size, to construct the Sinkhorn Gradient Flow starting from random Gaussian noise or other initial distributions. As indicated by Theorem 2, the mean-field limit converges to the true Sinkhorn Gradient flow when the batch size approaches ∞. Note that in practice, we only use a moderate batch size for computation efficiency, and the experimental results demonstrate that this works well for practical generative tasks.</p><p>Considering the balance between expensive training costs and training quality, we opted to first build a trajectory pool of Sinkhorn gradient flow and then sample from it to construct the velocity field matching algorithm. Our method draws inspiration from experience replay, a common technique in reinforcement learning, adapting it to enhance our model's effectiveness <ref type="bibr" target="#b79">[Mnih et al., 2013;</ref><ref type="bibr" target="#b106">Silver et al., 2016</ref>]. Once we calculate the time-varying velocity field vs µt ( Xt i ), we can parameterize the velocity field using a straightforward regression method. The velocity field matching training procedure is outlined in Algorithm 1. Once obtained a feasible velocity field approximation v θ , one can generate new samples by iteratively employing the explicit Euler discretization of the Equation equation 14 to drive the samples to the target. Note that various other numerical schemes, such as the implicit Euler method <ref type="bibr" target="#b93">[Platen and Bruti-Liberati, 2010]</ref> and Runge-Kutta methods <ref type="bibr" target="#b16">[Butcher, 1964]</ref>, can be employed. In this study, we opt for the firstorder explicit Euler discretization method <ref type="bibr" target="#b112">[Süli and Mayers, 2003]</ref> due to its simplicity and ease of implementation. We leave the exploration of higher-order algorithms for future research.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="4.4">NSGF++</head><p>In this subsection, we propose an approach to enhance the performance of NSGF on high-dimensional datasets. As a trajectory pool should be first constructed in the velocity field matching training procedure of NSGF, the storage and computation costs would greatly hinter the usage of NSGF in large-scale tasks. To tackle this problem, we propose a twophase NSGF++ algorithm, which first follows the Sinkhorn gradient flow to approach the image manifold quickly and then refine the samples along a simple straight flow. Specifically, our NSGF++ model consists of three components, (1) a NSGF model trained on T ≤ 5 time steps, (2) a Neural Straight Flow (NSF) model trained via velocity field matching on a straight flow X t ∼ (1 -t)P 0 + tP 1 , t ∈ [0, 1], which has also been used in existing FM models, (3) a phasetransition time predictor to transfer from NSGF to the NSF. Here, we train the time predictor t ϕ : X → [0, 1] with the following regression objective:</p><formula xml:id="formula_27">L(ϕ) = E t∈U (0,1),Xt∼Pt ||t -t ϕ (X t )|| 2 .</formula><p>Note that the training of the straight NSF model and the time predictor is simulated free and need no extra storage. As a result, the training cost of NSFG++ is similar to existing FM models, since the computation cost of NSF is nearly the same as FM, and the 5-step NSGF and the time predictor is easy to train.</p><p>In the inference of NSGF++, we first follow the NSGF with less than 5 NFEs form X 0 ∼ P 0 to obtain Xt , then transfer it with the time predictor t ϕ , and obtain our final output by refining the transferred sample with the NSF model from t ϕ ( Xt ), as shown in Figure <ref type="figure" target="#fig_4">5</ref>.  </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5">Experiments</head><p>We conduct an empirical investigation of the NSGF-based generative models (the standard NSGF and its two-phase variant NSGF++) across a range of experiments. Initially, we demonstrate how NSGF guides the evolution and convergence of particles from the initial distribution toward the target distribution in 2D simulation experiments. Subsequently, our attention turns to real-world image benchmarks, such as MNIST and CIFAR-10. To improve the efficiency in those high-dimensional tasks, we adopt the two-phase variant NSGF++ instead of the standard NSGF. Our method's adapt-ability to high-dimensional spaces is exemplified through experiments conducted on these datasets.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.1">2D simulation data</head><p>We assess the performance of various generative modeling models in low dimensions. Specifically, we conduct a comparative analysis between our method, NSGF, and several neural ODE-based diffusion models, including Flow Matching (FM; <ref type="bibr" target="#b71">[Lipman et al., 2023]</ref>), Rectified Flow (1,2,3-RF; <ref type="bibr" target="#b73">[Liu et al., 2023]</ref>), Optimal Transport Condition Flow Matching (OT-CFM; <ref type="bibr" target="#b114">[Tong et al., 2023;</ref><ref type="bibr" target="#b95">Pooladian et al., 2023]</ref>), Stochastic Interpolant (SI; <ref type="bibr" target="#b2">[Albergo and Vanden-Eijnden, 2023]</ref>), and neural gradient-flow-based models such as JKO-Flow <ref type="bibr" target="#b32">[Fan et al., 2022]</ref> and EPT <ref type="bibr" target="#b44">[Gao et al., 2022]</ref>. Our evaluation involves learning 2D distributions adapted from <ref type="bibr" target="#b52">[Grathwohl et al., 2018]</ref>, which include multiple modes.</p><p>Table <ref type="table" target="#tab_1">1</ref> provides a comprehensive overview of our 2D experimental results, clearly illustrating the generalization capabilities of NSGF. Even when employing fewer steps. It is evident that neural gradient-flow-based models consistently outperform neural ODE-based diffusion models, particularly in low-step settings. This observation suggests that neural gradient-flow-based models generate more informative paths, enabling effective generation with a reduced number of steps. Furthermore, our results showcase the best performances among neural gradient-flow-based models, indicating that we have successfully introduced a lower error in approximating Wasserstein gradient flows. More complete details of the experiment can be found in the appendix E. In the absence of specific additional assertions, we adopted Euler steps as the inference steps. We present additional comparisons between neural ODEbased diffusion models and neural gradient-flow-based models, represented by NSGF and EPT, in Figure <ref type="figure">3</ref>, 4, which illustrates the flow at different steps from 0 to T . Our observations reveal that the velocity field induced by NSGF exhibits notably high-speed values right from the outset. This is attributed to the fact that NSGF follows the steepest descent direction within the probability space. In contrast, neural ODEbased diffusion models, particularly those based on stochastic interpolation, do not follow the steepest descent path in 2D experiments. Even with the proposed rectified flow method by <ref type="bibr" target="#b73">[Liu et al., 2023]</ref> to straighten the path, these methods still necessitate more steps to reach the desired outcome.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="5.2">Image benchmark data</head><p>In this section, we illustrate the scalability of our algorithm to the high-dimensional setting by applying our methods to real image datasets. Notably, we leverage the two-phase variant (NSGF++) instead of the standard NSGF to enhance efficiency in high-dimensional spaces. It is worth mentioning that we achieve this improvement by constructing a significantly smaller training pool compared with the standard NSGF pool (10% of the usual size), thus requiring only 5% of the typical training duration. We evaluate NSGF++ on MNIST and CIFAR10 to show our generating ability. Due to the limit of the space, we defer the generative images and comparison results of MNIST in appendix 3.</p><p>We report sample quality using the standard Fréchet Inception Distance (FID) <ref type="bibr" target="#b56">[Heusel et al., 2017]</ref>, Inception Score (IS) <ref type="bibr" target="#b96">[Salimans et al., 2016]</ref> and compute cost using the number of function evaluations (NFE). These are all standard metrics throughout the literature.</p><p>Table <ref type="table" target="#tab_2">2</ref> presents the results, including the Fréchet Inception Distance (FID), Inception Score (IS), and the number of function evaluations (NFE), comparing the empirical distribution generated by each algorithm with the target distribution. While our current implementation may not yet rival state-of-the-art methods, it demonstrates promising outcomes, particularly in terms of generating quality (FID), outperforming neural gradient-flow-based models (EPT, <ref type="bibr" target="#b44">[Gao et al., 2022]</ref>; JKO-Flow, <ref type="bibr" target="#b32">[Fan et al., 2022]</ref>; DGGF,(LSIF-X 2 ) <ref type="bibr" target="#b54">[Heng et al., 2022]</ref>) with fewer steps. It's essential to emphasize that this work represents an initial exploration of this particular model category and has not undergone optimization </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head n="6">Conclusion</head><p>This paper delves into the realm of Wasserstein gradient flow w.r.t. the Sinkhorn divergence as an alternative to kernel methods. Our main investigation revolves around the Neural Sinkhorn Gradient Flow (NSGF) model, which introduces a parameterized velocity field that evolves over time in the Sinkhorn gradient flow. One noteworthy aspect of the NSGF is its efficient velocity field matching, which relies solely on samples from the target distribution for empirical approximations. The combination of rigorous theoretical foundations and empirical observations demonstrates that our approximations of the velocity field converge toward their true counterparts as the sample sizes grow. To further enhance model efficiency on high-dimensional tasks, a two-phase NSGF++ model is devised, which first follows the Sinkhorn flow to approach the image manifold quickly and then refine the samples along a simple straight flow. Through extensive empirical experiments on well-known datasets like MNIST and CIFAR-10, we validate the effectiveness of the proposed methods.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>A Computation of W ε -potentials</head><p>The W ε -potentials is the cornerstone to conduct NSGF. Hence, a key component of our method is to efficiently compute this quantity. <ref type="bibr" target="#b46">[Genevay et al., 2016]</ref> provided an efficient method when both µ and ν are discrete measures so that we can calculate W ε -potential in terms of samples. In particular, when µ is discrete, f can be simply represented by a finitedimensional vector since only its values on supp(µ) matter.</p><p>To more clearly explain the relationship between the calculation of W ε -protentials and the composition of our algorithm, we provide the following explanation: In practice, we actually calculate the W ε -potentials for the empirical distribution of discrete minibatches and construct Sinkhorn WGF based on this. Therefore, in fact, the µ and ν in the subsequent text refer to ( Xt i ) n i=1 and ( Ỹ t i ) n i=1 in the Algorithm 1. We first introduce another property of the entropy-regularized optimal transport problem. Lemma 2. Define the Sinkhorn mapping:</p><formula xml:id="formula_28">A : C(X ) × M + 1 (X ) → C(X ) A(f, µ)(y) = -ε log X exp((f (x) -c(x, y))/ε)dµ(x).</formula><p>(17) The pair (f µ,ν , g µ,ν ) are the W ε -potentials of the entropyregularized optimal transport problem 2 if they satisfy:</p><formula xml:id="formula_29">f µ,ν = A(g µ,ν , ν), µ -a.e. and g µ,ν = A(f µ,ν , µ), ν -a.e.,<label>(18)</label></formula><p>or equivalently</p><formula xml:id="formula_30">X h(x, y)dν(y) = 1, µ -a.e. , X h(x, y)dµ(x) = 1, ν -a.e. ,<label>(19)</label></formula><p>where h(x, y) := exp 1 γ (f (x) + g(x) -c(x, y)). To be more precise, by plugging in the optimality condition on g µ,ν in 1, the dual problem 2 becomes:</p><formula xml:id="formula_31">OT ε (µ, ν) = max f ∈C ⟨f, µ⟩ + ⟨A(f, µ), ν⟩<label>(20)</label></formula><p>Viewing the discrete measure µ as a weight vector w µ on supp(µ), we have:</p><formula xml:id="formula_32">OT ε (µ, ν) = max f ∈R d F (f ) := f ⊤ w µ + E y∼ν [A(f , µ)(y)] ,</formula><p>(21) that is, we get a standard concave stochastic optimization problem, where the randomness of the problem comes from ν <ref type="bibr" target="#b46">[Genevay et al., 2016]</ref>. Hence, the problem can be solved using stochastic gradient descent (SGD). In our methods, we can treat the computation of W ε -potentials as a Blackbox. In practice, we use the efficient implementation of the Sinkhorn algorithm with GPU acceleration from the GeomLoss package <ref type="bibr" target="#b38">[Feydy et al., 2019]</ref>.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B Theory of Sinkhorn Wasserstein gradient flow</head><p>Definition 3. (First variation of Functionals over Probability). Given a functional F : P(X ) → R + , we shell perturb measure µ with a perturbation χ so that µ + tχ belongs to P(X ) for small t ( dχ = 0). We treat F(µ), as a functional over probability in its second argument and compute its first variation as follows:</p><formula xml:id="formula_33">d dt F (µ + tχ) t=0 = lim t→0 F (µ + tχ) -F (µ) t := δF δµ (µ) dχ.<label>(22)</label></formula><p>B.1 Proof of Theorem 1</p><p>Proof. According to definition 3, given</p><formula xml:id="formula_34">F ε (•) = S ε (•, µ * )</formula><p>and t in a neighborhood of 0, we define</p><formula xml:id="formula_35">µ t = µ + tδµ lim t→0 1 t (F ε (µ t ) -F ε (µ)) = lim t→0 1 t (W ε (µ t , µ * ) -W ε (µ, µ * )) ∆ first part t -lim t→0 1 2t (W ε (µ t , µ t ) -W ε (µ, µ)) ∆ second part t We first analysis ∆ first part t := lim t→0 1 t (W ε (µ t , µ * ) -W ε (µ, µ * )).</formula><p>First, let us remark that (f, g) is the a suboptimal pair of dual potentials W ε,µ * (µ) for short. Recall 3,</p><formula xml:id="formula_36">W ε ≥ ⟨µ t , f ⟩ + ⟨µ * , g⟩ -ε µ t ⊗ µ * , exp 1 ε (f ⊕ g -C) -1 ,</formula><p>and thus, since</p><formula xml:id="formula_37">W ε ≥ ⟨µ, f ⟩ + ⟨µ * , g⟩ -ε µ ⊗ µ * , exp 1 ε (f ⊕ g -C) -1 ,</formula><p>one has</p><formula xml:id="formula_38">∆ first part t ≥ ⟨δµ, f ⟩ -ε δµ ⊗ µ * , exp 1 ε (f ⊕ g -C) + o(1) ≥ ⟨δµ, f -ε⟩ + o(1)</formula><p>Conversely, let us denote by (f t , g t ) the optimal pair of potentials for W ε (µ t , µ * ) satisfying g t (x o ) = 0 for some arbitrary anchor point x o ∈ X . As (f t , g t ) are suboptimal potentials for W ε (µ, µ * ) we get that</p><formula xml:id="formula_39">W ε ≥ ⟨µ, f t ⟩ + ⟨µ * , g t ⟩ -ε µ t ⊗ µ * , exp 1 ε (f ⊕ g -C) -1 ,</formula><p>and thus, since</p><formula xml:id="formula_40">W ε ≥ ⟨µ t , f t ⟩ + ⟨µ * , g t ⟩ -ε µ t ⊗ µ * , exp 1 ε (f t ⊕ g -C) -1 , one has ∆ first part t ≥ ⟨δµ, ft⟩ -ε δµ ⊗ µ * t , exp 1 ε (ft ⊕ g -C) + o(1) ≥ ⟨δµ, ft -ε⟩ + o(1)</formula><p>Now, let us remark that as t goes to 0, µ + tδµ ⇀ µ. f t and g t converge uniformly towards f and g according to Proposition 13 <ref type="bibr" target="#b38">[Feydy et al., 2019]</ref>. we get</p><formula xml:id="formula_41">∆ first part t = ⟨δµ, f ⟩ Simular to analysis ∆ first part t := lim t→0 1 t (W ε (µ t , µ * ) -W ε (µ, µ * ))</formula><p>we define</p><formula xml:id="formula_42">∆ second part t := lim t→0 1 2t (W ε (µ t , µ t ) -W ε (µ, µ))</formula><p>, we have:</p><formula xml:id="formula_43">∆ second part t = ⟨δµ, f ′ ⟩ to be more clearly, we denote f = f µ,µ * and f ′ = f µ,µ thus, lim t→0 1 t (F ε (µ t ) -F ε (µ)) = ⟨δµ, f µ,µ * -f µ,µ ⟩.</formula><p>So the first variation of F ε is:</p><formula xml:id="formula_44">δF ε δµ = f µ,µ * -f µ,µ .</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.2 Proof of Proposition 2</head><p>Following the lines of our proof in Theorem 1, we give the following proof. Lemma 3. (Fréchet derivative of entropy-regularized Wasserstein distance) Let ε &gt; 0. We shall fix in the following a measure µ * and let (f µ,µ * , g µ,µ * ) be the W ε potentials of W ε (µ, µ * ) according to lemma 1. Consider the infinitesimal transport T (x) = x + λϕ. We have the Fréchet derivative under this particular perturbation:</p><formula xml:id="formula_45">d dλ W ε (T # µ, µ * )| λ=0 = lim λ→0 W ε (T # µ, µ * ) -W ε (µ, µ * ) λ = X ∇f µ,µ * (x)ϕ(x)dµ(x).<label>(23)</label></formula><p>Proof. let f = f µ,µ * and g = g µ,µ * be the W ε -potentials 1 to W ε (µ, µ * ) for short. By 3 and the optimality of (f, g), we have follows:</p><formula xml:id="formula_46">W ε (µ, µ * ) = ⟨f, µ⟩ + ⟨g, µ * ⟩.</formula><p>However, (f, g) are not necessarily the optimal dual variables for W ε (T # µ, µ * ), recall the lemma 2:</p><formula xml:id="formula_47">W ε (T # µ, µ * ) ≥ ⟨f, T # µ⟩ + ⟨g, µ * ⟩ -ε⟨h -1, T # µ ⊗ µ * ⟩,</formula><p>where X h(x, y)dµ * (y) = 1 and hence ⟨h-1, T # µ⊗µ * ⟩ = 0. Thus:</p><formula xml:id="formula_48">W ε (T # µ, µ * ) -W ε (µ, µ * ) ≥ ⟨f, T # µ -µ⟩.</formula><p>Use the change-of-variables formula of the push-forward measure to obtain:</p><formula xml:id="formula_49">1 λ ⟨f, T # µ -µ⟩ = 1 λ X ((f • T )(x) -f (x))dµ(x) = X ∇f (x + λ ′ ϕ(x))ϕ(x)dµ(x),</formula><p>where λ ′ ∈ [0, λ] is from the mean value theorem. Here we assume ∇f is Lipschitz continuous follow Proposition 12 in <ref type="bibr" target="#b38">[Feydy et al., 2019]</ref> and Lemma A.4 form <ref type="bibr" target="#b104">[Shen et al., 2020]</ref>.</p><p>We have:</p><formula xml:id="formula_50">lim λ→0 1 λ ⟨f, T # µ -µ⟩ = X ∇f (x)ϕ(x)dµ(x).</formula><p>Hence:</p><formula xml:id="formula_51">lim λ→0 1 λ (W ε (T # µ, µ * ) -W ε (µ, µ * )) ≥ X ∇f (x)ϕ(x)dµ(x).</formula><p>Similarly, let f ′ and g ′ be the W ε potentials to W ε (T # µ, µ * ), we have:</p><formula xml:id="formula_52">W ε (µ, µ * ) ≥ ⟨f ′ , µ⟩ + ⟨g, µ * ⟩ -ε⟨h -1, µ ⊗ µ * ⟩,</formula><p>where X h(x, y)dµ * (y) = 1 and hence ⟨h-1, µ⊗µ * ⟩ = 0. Thus:</p><formula xml:id="formula_53">W ε (T # µ, µ * ) -W ε (µ, µ * ) ≤ ⟨f ′ , T # µ -µ⟩.</formula><p>Same as above, use the change-of-variables formula and the mean value theorem:</p><formula xml:id="formula_54">1 λ ⟨f ′ , T # µ -µ * ⟩ = X ∇f ′ (x + λ ′ ϕ(x))ϕ(x)dµ(x),</formula><p>Thus:</p><formula xml:id="formula_55">lim λ→0 1 λ (W ε (T # µ, µ * ) -W ε (µ, µ * )) ≤ X lim λ→0 ∇f ′ (x + λ ′ ϕ(x))ϕ(x)dµ(x).</formula><p>Assume that ∇f ′ is Lipschitz continuous and f ′ → f as λ → 0. Consequently we have lim λ→0 ∇f ′ (x + λ ′ ϕ(x)) and hence:</p><formula xml:id="formula_56">lim λ→0 1 λ (W ε (T # µ, µ * ) -W ε (µ, µ * )) = X ∇f (x)ϕ(x)dµ(x).</formula><p>According to lemma 3, we have:</p><formula xml:id="formula_57">d dλ Fε(T # µ) λ=0 = X ∇fµ,µ * (x)ϕ(x)dµ(x) - 1 2 • X 2∇fµ,µ(x)ϕ(x)dµ(x) = X ∇fµ,µ * (x)ϕ(x)dµ - X ∇fµ,µ(x)ϕ(x)dµ.</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.3 Proof of theorem 2</head><p>Proof. First, we define Ψ(µ) = hdµ where h : R d → R is an arbitrary bounded and continuous function and δΨ(µ) δµ (x) denotes the first variation of functional Ψ at µ satisfying:</p><formula xml:id="formula_58">δΨ(µ) δµ (x)ξ(x)dx = lim ϵ→0 Ψ(µ + ϵξ) -Ψ(µ) ϵ</formula><p>for all signed measure ξ(x)dx = 0. We also have the following:</p><formula xml:id="formula_59">δΨ(µ) δµ (•) = δ hdµ δµ (•) = h(•)</formula><p>Assume µ t is a flow satisfies the following:</p><formula xml:id="formula_60">∂ t Ψ[µ t ] = (LΨ)[µ t ],</formula><p>where,</p><formula xml:id="formula_61">LΨ[µ t ] = -⟨∇ δF ε (µ t ) δµ (x), ∇ x δΨ(µ t ) δµ (x)⟩µ t (x)dx<label>(24)</label></formula><p>Notably, µ t is a solution of equation 2.</p><p>Next, let μM t be the distribution produced by the equation 14 at time t. Under mild assumption of μM 0 ⇀ µ 0 , we want to show that the mean-field limit of μM t as M → ∞ is µ t by showing that lim M →∞ Ψ(µ M t ) = Ψ(µ t ) <ref type="bibr">[Folland, 1999]</ref>. For the measure valued flow μM t equation 14, the infinitesimal generator of Ψ w.r.t. μM t is defined as follows:</p><formula xml:id="formula_62">(LΨ)[μ M t ] := lim ϵ→0 + Ψ(μ M t+ϵ ) -Ψ(μ M t ) ϵ ,</formula><p>According to the definition of first variation, it can be calculated that</p><formula xml:id="formula_63">(LΨ)[μ M t ] = lim ϵ→0 + Ψ[ M i=1 1 M δ x i t+ϵ ] -Ψ( M i=1 1 M δ x i t ) ϵ = δΨ(μ M t ) δµ (x) M i=1 1 M ∂tρ(x i t )dx</formula><p>Then we adopt the Induction over the Continuum to prove lim n→∞ Ψ(μ M t ) = Ψ(µ t ) for all t &gt; 0. Here t ∈ R + satisfy the requirement of well ordering and the existence of a greatest lower bound for non-empty subsets, so Induction over the Continuum is reasonable <ref type="bibr" target="#b64">[Kalantari, 2007]</ref>.</p><p>1. As for t = 0, our assumption of μM 0 ⇀ µ 0 suffice. 2. For the case of t = t * , we first hypothesis that for t &lt; t * , μM t ⇀ µ t as M → ∞. Then for t &lt; t * we have: <ref type="formula" target="#formula_0">1</ref>) and (2), we can reach to the conclusion that lim M →∞ Ψ(µ M t ) = Ψ(µ t ) for all t. which indicates that μM t ⇀ µ t if μM 0 ⇀ µ 0 . Since µ t solves the partial differential equation 10, we conclude that the path of equation 14 starting from μM 0 weakly converges to a solution of the partial differential equation equation 10 starting from µ 0 as M → ∞.</p><formula xml:id="formula_64">lim M →∞ (LΨ)[μ M t ] = lim M →∞ δΨ(μ M t ) δµ (x) M i=1 1 M ∂tρ(x i t )dx = -lim M →∞ ⟨∇ δFε(µt) δµ (x), ∇x δΨ(μ M t ) δµ (x)⟩μ M t (x)dx = -⟨∇ δFε(µt) δµ (x), ∇x δΨ(µt) δµ (x)⟩µt(x)dx. Because lim M →∞ Ψ(μ M 0 ) = Ψ(µ 0 ) at t = 0 and lim M →∞ (∂ t Ψ)[μ M t ] = (∂ t Ψ)[µ t ] for all t &lt; t * , we have lim M →∞ Ψ(μ M t * ) = Ψ(µ t * ). Combining (</formula></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>B.4 Descending property</head><p>Proposition 3. Consider the Sinkhorn gradient flow 10, the differentiation of F ε (µ t ) with respect to the time t satisfies:</p><formula xml:id="formula_65">dF ε (µ t ) dt = - ∇ δF ε (µ t ) δµ t 2 dµ t ≤ 0<label>(25)</label></formula><p>Proof. By substituting Ψ(•) = F ε (•) in equation 24, we directly reach to the above equality.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>C Minibatch Optimal Transport</head><p>For large datasets, the computation and storage of the optimal transport plan can be challenging due to OT's cubic time and quadratic memory complexities relative to the number of samples <ref type="bibr">[Cuturi, 2013;</ref><ref type="bibr" target="#b46">Genevay et al., 2016;</ref><ref type="bibr" target="#b91">Peyré et al., 2017]</ref>. The minibatch approximation offers a viable solution for enhancing calculation efficiency. Theoretical analysis of using the minibatch approximation for transportation plans is provided by <ref type="bibr" target="#b34">[Fatras et al., 2019;</ref><ref type="bibr">Fatras et al., 2021b]</ref>. Although minibatch OT introduces some errors compared to the exact OT solution, its efficiency in computing approximate OT is clear, and it has seen successful applications in domains like domain adaptation <ref type="bibr" target="#b23">[Damodaran et al., 2018;</ref><ref type="bibr">Fatras et al., 2021a]</ref> and generative modeling <ref type="bibr" target="#b48">[Genevay et al., 2018]</ref>. More recently, <ref type="bibr" target="#b95">[Pooladian et al., 2023;</ref><ref type="bibr" target="#b114">Tong et al., 2023</ref>] introduced OT-CFM and empirically demonstrated that using minibatch approximation of optimal transport in flow matching methods <ref type="bibr" target="#b73">[Liu et al., 2023;</ref><ref type="bibr" target="#b71">Lipman et al., 2023]</ref> can straighten the flow's trajectory and yield more consistent samples. OT-CFM specifically focuses on minibatch initial and target samples, continuing to use random linear interpolation paths. In contrast, NSGF leverages minibatch W ε -potentials to construct Sinkhorn gradient flows in minibatches. Our method also involves performing velocity field matching on the flow's discretized form, marking a separate and innovative direction in the field.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>D NSGF++</head><p>We introduce a two-phase NSGF++ algorithm that initially employs the Sinkhorn gradient flow for rapid approximation to the image manifold, followed by sample refinement using a straightforward straight flow. The NSGF++ model comprises three key components:</p><p>• An NSGF model trained for T ≤ 5 time steps.</p><p>• A phase-transition time predictor, denoted as t ϕ : X → [0, 1], which facilitates the transition from NSGF to NSF.</p><p>• A Neural Straight Flow (NSF) model, trained through velocity field matching on a linear interpolation straight flow X t ∼ (1 -t)P 0 + tP 1 , t ∈ [0, 1]. the detailed algorithm is outlined in 3.</p><p>In the inference process of NSGF++, we initially apply the NSGF with fewer than 5 NFE, starting from X 0 ∼ P 0 , to obtain an intermediate output XT . This output is then processed using the time predictor t ϕ . </p><formula xml:id="formula_66">i ∼ µ 0 , Ỹi ∼ µ * , i = 1, 2, • • • n. t ∼ U(0, 1). X t = t Ỹi + (1 -t) X0 i L(ϕ) = E t∈U (0,1),Xt∼Pt ||t -t ϕ (X t )|| 2 . ϕ ← ϕ -γ ′ ∇ ϕ L (ϕ) . / * NSF model * / while Training do X0 i ∼ µ 0 , Ỹi ∼ µ * , i = 1, 2, • • • n. t ∼ U(0, 1). X t = t Ỹi + (1 -t) X0 i . L NSF (δ) ← u δ (t, X t ) -Ỹi -X0 i 2 . δ ← δ -γ ′′ ∇ δ L NSF (δ).</formula><p>Output: v θ parameterize the time-varying velocity field of NSGF, t ϕ parameterize the phase trainsition time predictor, u δ parameterize the NSF model from the state t ϕ ( Xt ). The detailed algorithm is outlined in 4.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E Experimrnts E.1 2D simulated data</head><p>For the 2D experiments, we closely follow <ref type="bibr" target="#b114">[Tong et al., 2023]</ref> and the released code at <ref type="url" target="https://github.com/atong01/conditional-flow-matching">https: //github.com/atong01/conditional-flow-matching</ref> (code released under MIT license), and use the same synthetic datasets and the 2-Wasserstein distance between the test set and samples simulated using NSGF as the evaluation metric. We use 1024 samples in the test set since we find the We use a simple MLP with 3 hidden layers and 256 hidden units to parameterize the velocity matching networks. We use batch size 256 and 10/100 steps with a uniform schedule at sampling time. For both Nerual gradient-flow-based models and Nerual ODE-based Models, we train for 20000 steps in total. Note that FM cannot be used for the 8gaussians-moons task since it requires a Gaussian source, but we still conducted experiments with the algorithm and found competitive experimental results. We believe that this is because FM is essentially very close to 1-RF in its algorithmic design, and that the Gaussian source condition can be meaningfully relaxed in practice, as confirmed in <ref type="bibr" target="#b114">[Tong et al., 2023]</ref>. The experiments are run using one 3090 GPU and take approximately less than 60 minutes (for both training and testing).</p><p>For the neural gradient-flow-based models, we solely implemented the EPT without the outer loop, as the outer loop can be likened to a GAN-like distillation approach <ref type="bibr" target="#b50">[Goodfellow et al., 2014]</ref>. Notably, the original EPT <ref type="bibr" target="#b44">[Gao et al., 2022]</ref> recommends iterating for 20, 000 rounds with an exceedingly </p><formula xml:id="formula_67">i = Xt i + ηv θ Xt i , t , i = 1, 2, • • • n. / * phase trainsition time predict * / t = t ϕ ( XT i ).</formula><p>/ * NSF refine phase * / T = (1 -t)/ω. X = ODEsolver( XT i , u δ , t, 1, T ). Output: X as the results. small step size; however, to ensure a fair comparison, we employed the same number of steps as the other methods while adapting the step size accordingly. It's worth mentioning that for the JKO-Flow, we used the recommended parameter setting of 10 steps, as suggested in <ref type="bibr" target="#b32">[Fan et al., 2022]</ref>, but we also provide results for 100 steps for comparative purposes. All the results for Neural Gradient flow-based models were trained and sampled following the standard procedures outlined in their respective papers.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.2 Image benchmark data</head><p>For the MNIST/CIFAR-10 experiments, we summarize the setup of our NSGF++ model here, where the exact parameter choices can be seen in the source code. For the calculation of W ε -potentials, we use the GeomLoss package <ref type="bibr" target="#b38">[Feydy et al., 2019]</ref> with blur = 0.5, 1.0 or 2.0, scaling = 0.80, 0.85 or 0.95 depends on learning rate of Sinkhorn gradient flow. We find using an incremental lr scheme will improve training performance. More detailed experiments we will leave for future work. We used the Adam optimizer with β 1 = 0.9, β 2 = 0.999 and no weight decay. Here we list different part of our NSGF++ model separately. First, we use the UNet architecture from <ref type="bibr" target="#b29">[Dhariwal and Nichol, 2021]</ref>. For MNIST, we use channels = 32, depth = 1, channels multiple = [1, 2, 2], heads = 1, attention resolution = 16, dropout = 0.0. For CIFAR-10, we use channels = 128, depth = 2, channels multiple = [1, 2, 2, 2], heads = 4, heads channels = 64, attention resolution = 16, dropout = 0.0. We use the same UNet architecture in our neural straight flow model.</p><p>For the phase transition time predictor, we employed an efficiently designed convolutional neural network (CNN) capable of achieving satisfactory results while optimizing training time. The CNN used in our study consists of a structured architecture featuring four convolutional layers with filter depths of 32, 64, 128, and 256. Each layer uses a 3x3 kernel, a stride of 1, and padding of 1, coupled with ReLU activation and 2x2 average pooling for effective feature downsampling. The network culminates in a fully connected layer that transforms the flattened features into a single value, further For the MNIST/CIFAR-10 experiments, a considerable amount of storage space is required when establishing the trajectory pool during the first phase of the algorithm. For MNIST dataset, setting the batch size to 256 and saving 1500 batches 5-step minibatch Sinkhorn gradient flow trajectories requires less than 20GB of storage space and with CIFAR-10, setting the batch size to 128 and saving 2500 batches 5-step minibatch Sinkhorn gradient flow trajectories requires about 45GB of storage space. In situations where storage space is limited, we suggest dynamically adding and removing trajectories in the trajectory pool to meet the training requirements. Identifying a more effective trade-off between training time and storage space utilization is a direction for future improvement.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>E.3 Supplementary experimental results</head></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>2D simulated data</head><p>In our supplementary materials, we present additional results from 2D simulated data to demonstrate the efficiency of the NSGF++ model in Figure <ref type="figure" target="#fig_6">6</ref> and Figure <ref type="figure" target="#fig_7">7</ref>. These results indicate that NSGF++ achieves competitive performance with a more direct path and fewer steps compared to other neural Wasserstein gradient flow and flow-matching methods, highlighting its effectiveness and computational efficiency. </p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>MNIST</head><p>In our study, we include results from the MNIST dataset to showcase the efficiency of the NSGF++ model. As detailed in Table <ref type="table" target="#tab_4">3</ref>, NSGF++ achieves competitive Fréchet Inception Distances (FIDs) while utilizing only 60% of the Number of Function Evaluations (NFEs) typically required. This underscores the model's effectiveness in balancing performance with computational efficiency. To evaluate our results, we use the Fréchet inception distance (FID) between 10K generated samples and the test dataset. Here, a smaller FID value indicates a higher similarity between generated and test samples.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>CIFAR-10</head><p>In our work, we present further results of the NSGF++ model on the CIFAR-10 dataset, illustrated in Figures <ref type="figure">9</ref> and<ref type="figure" target="#fig_1">11</ref>. These experimental findings demonstrate that NSGF++ attains competitive performance in generation tasks, highlighting its efficacy.</p></div>
+<div xmlns="http://www.tei-c.org/ns/1.0"><head>Algorithm</head><p>MNIST FID(↓) NFE(↓) NSGF++(ours)</p><p>3.8 60 SWGF <ref type="bibr">[ 2019 ]</ref> 225.1 500 SIG <ref type="bibr">[ 2020 ]</ref> 4.5 / FM <ref type="bibr">[ 2023 ]</ref> 3.4 100 OT-CFM <ref type="bibr">[ 2023 ]</ref> 3.3 100 RF <ref type="bibr">[ 2023 ]</ref> 3.1 100 Training set 2.27 /  </p></div><figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_0"><head>Figure 1 :</head><label>1</label><figDesc>Figure 1: Tajectories comparison between the Flow matching and the NSGF++ model in CIFAR-10 task. we can see NSGF++ model quickly recovers the target structure and progressively optimizes the details in subsequent steps</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_1"><head>Algorithm 1 :</head><label>1</label><figDesc>Velocity field matching training Input : number of time steps T , batch size n, gradient flow step size η &gt; 0, empirical or samplable distribution µ 0 and µ * , neural network parameters θ, optimizer step size γ &gt; 0 / * Build trajectory pool * / while Building do / * Sample batches of size n i.i.d. from the datasets *</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_2"><head/><label/><figDesc>Figure 2: NSGF++ framework</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_3"><head>Figure 3 :Figure 4</head><label>34</label><figDesc>Figure 3: Visualization results for 2D generated paths. We show different methods that drive the particle from the prior distribution (black) to the target distribution (blue). The color change of the flow shows the different number of steps (from blue to red means from 0 to T ).</figDesc><graphic coords="6,60.34,183.95,120.96,120.96" type="bitmap"/></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_4"><head>Figure 5 :</head><label>5</label><figDesc>Figure 5: The inference result of our NSGF++ model. The first row shows the result after 5 NSGF steps and the second row shows the final results.</figDesc><graphic coords="7,333.22,184.66,206.56,129.66" type="bitmap"/></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_5"><head/><label/><figDesc>Algorithm 4: NSGF++ Inference Input : number of NSGF time steps T ≤ 5, NSGF++ inference step size η, NSGF velocity field v θ , phase trainsition time predictor t ϕ , NSF inference step size ω, NSF model u δ , prior samples X0 i ∼ μ0 , ODEsolver(X, model, starttime, endtime, steps) / * NSGF phase * / for t = 0, 1, • • • T do Xt+1</figDesc></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_6"><head>Figure 6 :</head><label>6</label><figDesc>Figure6: Visualization results for 2D generated paths. We show different methods that drive the particle from the prior distribution (black) to the target distribution (blue). The color change of the flow shows the different number of steps (from blue to red means from 0 to T ). We can see NSGF using fewer steps than OT-CFM refined through a sigmoid activation function for regression tasks targeting time value outputs. This architecture is tailored for processing image inputs to predict continuous time values within a specific range. The training parameters are as follows: Batch size: 128 Learning rate: 10 -4 . For sampling, a 5-step Euler integration is applied in the NSGF phase on MNIST and CIFAR-10 datasets. Training the phase transition time predictor is efficient and methodically streamlined. Utilizing a well-structured CNN as its backbone, the model reaches peak performance in merely 20 minutes, covering 40,000 iterations. This training efficiency is a significant advantage, especially for applications that demand rapid model adaptation.For the MNIST/CIFAR-10 experiments, a considerable amount of storage space is required when establishing the trajectory pool during the first phase of the algorithm. For MNIST dataset, setting the batch size to 256 and saving 1500 batches 5-step minibatch Sinkhorn gradient flow trajectories requires less than 20GB of storage space and with CIFAR-10, setting the batch size to 128 and saving 2500 batches 5-step minibatch Sinkhorn gradient flow trajectories requires about 45GB of storage space. In situations where storage space is limited, we suggest dynamically adding and removing trajectories in the trajectory pool to meet the training requirements. Identifying a more effective trade-off between training time and storage space utilization is a direction for future improvement.</figDesc><graphic coords="14,324.66,143.83,72.90,72.90" type="bitmap"/></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_7"><head>Figure 7</head><label>7</label><figDesc>Figure 7: 2-Wasserstein Distance of the generated process utilizing neural ODE-based diffusion models and NSGF. The FM/SI methods reduce noise roughly linearly, while NSGF quickly recovers the target structure and progressively optimizes the details in subsequent steps.</figDesc><graphic coords="15,319.66,308.00,113.12,113.12" type="bitmap"/></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" xml:id="fig_8"><head>Figure 8 :Figure 9 :</head><label>89</label><figDesc>Figure 8: Uncurated samples on MNIST and L2-nearest neighbors from the training set (top: Samples, bottom: real)We observe that they are significantly different. Hence, our method generates really new samples and is not just reproducing the samples from the training set</figDesc><graphic coords="15,440.22,308.00,113.12,113.12" type="bitmap"/></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head/><label/><figDesc/><graphic coords="16,154.80,60.16,302.40,302.40" type="bitmap"/></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head/><label/><figDesc/><graphic coords="16,154.80,363.55,302.40,302.40" type="bitmap"/></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head/><label/><figDesc/><graphic coords="17,154.80,60.15,302.41,302.41" type="bitmap"/></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0"><head/><label/><figDesc/><graphic coords="17,154.80,363.55,302.41,302.41" type="bitmap"/></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_1"><head>Table 1 :</head><label>1</label><figDesc>Comparison of neural gradient-flow-based methods and neural ODE-based diffusion models over five data sets with 10/100 Euler steps. The principle of steps in JKO-flow means backward Eulerian method steps (JKO steps).</figDesc><table><row><cell>Algorithm</cell><cell cols="10">2-Wasserstein distance (10 steps) 8gaussians 8gaussians-moons moons scurve checkerboard 8gaussians 8gaussians-moons moons scurve checkerboard 2-Wasserstein distance (100 steps)</cell></row><row><cell>NSGF (ours)</cell><cell>0.285</cell><cell>0.144</cell><cell>0.077</cell><cell>0.117</cell><cell>0.252</cell><cell>0.278</cell><cell>0.144</cell><cell>0.067</cell><cell>0.110</cell><cell>0.147</cell></row><row><cell>JKO-Flow</cell><cell>0.290</cell><cell>0.177</cell><cell>0.085</cell><cell>0.135</cell><cell>0.269</cell><cell>0.274</cell><cell>0.167</cell><cell>0.085</cell><cell>0.123</cell><cell>0.160</cell></row><row><cell>EPT</cell><cell>0.295</cell><cell>0.180</cell><cell>0.082</cell><cell>0.138</cell><cell>0.277</cell><cell>0.289</cell><cell>0.176</cell><cell>0.080</cell><cell>0.118</cell><cell>0.163</cell></row><row><cell>OT-CFM</cell><cell>0.289</cell><cell>0.173</cell><cell>0.088</cell><cell>0.149</cell><cell>0.253</cell><cell>0.269</cell><cell>0.165</cell><cell>0.078</cell><cell>0.127</cell><cell>0.159</cell></row><row><cell>1-RF</cell><cell>0.427</cell><cell>0.294</cell><cell>0.107</cell><cell>0.169</cell><cell>0.396</cell><cell>0.415</cell><cell>0.293</cell><cell>0.099</cell><cell>0.136</cell><cell>0.166</cell></row><row><cell>2-RF</cell><cell>0.428</cell><cell>0.311</cell><cell>0.125</cell><cell>0.171</cell><cell>0.421</cell><cell>0.430</cell><cell>0.311</cell><cell>0.121</cell><cell>0.136</cell><cell>0.170</cell></row><row><cell>3-RF</cell><cell>0.421</cell><cell>0.298</cell><cell>0.110</cell><cell>0.170</cell><cell>0.413</cell><cell>0.414</cell><cell>0.297</cell><cell>0.103</cell><cell>0.140</cell><cell>0.170</cell></row><row><cell>SI</cell><cell>0.435</cell><cell>0.324</cell><cell>0.134</cell><cell>0.187</cell><cell>0.427</cell><cell>0.411</cell><cell>0.294</cell><cell>0.096</cell><cell>0.139</cell><cell>0.166</cell></row><row><cell>FM</cell><cell>0.423</cell><cell>0.292</cell><cell>0.111</cell><cell>0.171</cell><cell>0.417</cell><cell>0.415</cell><cell>0.290</cell><cell>0.097</cell><cell>0.135</cell><cell>0.165</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_2"><head>Table 2 :</head><label>2</label><figDesc>Comparison of Neural Wasserstein gradient flow methods and Neural ODE-based diffusion models over CIFAR-10</figDesc><table><row><cell>Algorithm</cell><cell cols="3">CIFAR 10 IS(↑) FID(↓) NFE(↓)</cell></row><row><cell>NSGF++ (ours)</cell><cell>8.86</cell><cell>5.55</cell><cell>59</cell></row><row><cell>EPT[2022]</cell><cell>/</cell><cell>46.63</cell><cell>10k</cell></row><row><cell cols="2">JKO-Flow[2022] 7.48</cell><cell>23.7</cell><cell>&gt;150</cell></row><row><cell>DGGF[2022]</cell><cell>/</cell><cell>28.12</cell><cell>110</cell></row><row><cell>OT-CFM[2023]</cell><cell>/</cell><cell>11.14</cell><cell>100</cell></row><row><cell>FM[2023]</cell><cell>/</cell><cell>6.35</cell><cell>142</cell></row><row><cell>RF[2023]</cell><cell>9.20</cell><cell>4.88</cell><cell>100</cell></row><row><cell>SI[2023]</cell><cell>/</cell><cell>10.27</cell><cell>/</cell></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_3"><head/><label/><figDesc>The final output is achieved by refining this intermediate result with the NSF model, starting Algorithm 3: NSGF++ Training Input : number of time steps T , batch size n, gradient flow step size η &gt; 0, empirical or samplable distribution µ 0 and µ * , neural network parameters θ, optimizer step size γ &gt; 0</figDesc><table><row><cell cols="2">/ * NSGF model</cell><cell/><cell/><cell>* /</cell></row><row><cell cols="5">/ * Build trajectory pool</cell><cell>* /</cell></row><row><cell cols="2">while Building do</cell><cell/><cell/></row><row><cell cols="5">/ * Sample batches of size n i.i.d. from the datasets</cell><cell>* /</cell></row><row><cell cols="5">X0 i ∼ µ 0 , Ỹi ∼ µ  *  , i = 1, 2, • • • n.</cell></row><row><cell cols="3">for t = 0, 1, • • • T do</cell><cell/></row><row><cell cols="2">calculatef μt,μt</cell><cell cols="3">Xt i , f μt,μ  *  Xt i .</cell></row><row><cell>vFϵ µt</cell><cell cols="3">Xt i = ∇f μt,μt</cell><cell>Xt i -∇f μt,μ  *  Xt i .</cell></row><row><cell>Xt+1 i</cell><cell cols="2">= Xt i + η vFϵ t</cell><cell cols="2">Xt i .</cell></row><row><cell cols="3">store all Xt i , vFϵ t</cell><cell>Xt i</cell><cell>pair into the pool, i = 1, 2, • • • n.</cell></row><row><cell cols="5">/ * velocity field matching</cell><cell>* /</cell></row><row><cell cols="3">while Not convergence do</cell><cell/></row><row><cell cols="5">from trajectory pool sample pair Xt i , vFϵ t</cell><cell>Xt i</cell><cell>.</cell></row><row><cell cols="4">L(θ) = v θ ( Xt i , t) -vFε µt</cell><cell>Xt i</cell><cell>2</cell><cell>,</cell></row><row><cell cols="3">θ ← θ -γ∇ θ L (θ) .</cell><cell/></row><row><cell cols="5">/ * phase trainsition time predictor</cell><cell>* /</cell></row><row><cell cols="2">while Training do</cell><cell/><cell/></row><row><cell>X0</cell><cell/><cell/><cell/></row></table></figure>
+<figure xmlns="http://www.tei-c.org/ns/1.0" type="table" xml:id="tab_4"><head>Table 3 :</head><label>3</label><figDesc>Comparison of NSGF++ and other methods over MNIST, The last row states statistics of the FID scores between 10k training examples and 10k test examples</figDesc><table/></figure>
+		</body>
+		<back>
+			<div type="references">
+
+				<listBibl>
+
+<biblStruct xml:id="b0">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Alaya</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b1">
+	<analytic>
+		<title level="a" type="main">Screening sinkhorn algorithm for regularized optimal transport</title>
+		<author>
+			<persName><forename type="first">Maxime</forename><surname>Mokhtar Z Alaya</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gilles</forename><surname>Berar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alain</forename><surname>Gasso</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Rakotomamonjy</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b2">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Vanden-Eijnden</forename><surname>Albergo</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b3">
+	<analytic>
+		<title level="a" type="main">Building normalizing flows with stochastic interpolants</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Samuel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Albergo</forename></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Eric</forename><surname>Vanden-Eijnden</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Eleventh ICLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b4">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Alvarez-Melis</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b5">
+	<analytic>
+		<title level="a" type="main">Optimizing functionals on the space of probabilities with input convex neural networks</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Alvarez-Melis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yair</forename><surname>Schiff</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Youssef</forename><surname>Mroueh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Transactions on Machine Learning Research</title>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b6">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Ambrosio</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b7">
+	<monogr>
+		<title level="m" type="main">Gradient flows: in metric spaces and in the space of probability measures</title>
+		<author>
+			<persName><forename type="first">Luigi</forename><surname>Ambrosio</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Gigli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Giuseppe</forename><surname>Savaré</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2005">2005</date>
+			<publisher>Springer Science &amp; Business Media</publisher>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b8">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Amos</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b9">
+	<analytic>
+		<title level="a" type="main">Input convex neural networks</title>
+		<author>
+			<persName><forename type="first">Brandon</forename><surname>Amos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lei</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">J Zico</forename><surname>Kolter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2017">2017</date>
+			<biblScope unit="page" from="146" to="155"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b10">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Ansari</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b11">
+	<analytic>
+		<title level="a" type="main">Refining deep generative models via discriminator gradient flow</title>
+		<author>
+			<persName><forename type="first">Abdul</forename><surname>Fatir Ansari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ming</forename><surname>Liang Ang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harold</forename><surname>Soh</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b12">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Arbel</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b13">
+	<analytic>
+		<title level="a" type="main">Maximum mean discrepancy gradient flow</title>
+		<author>
+			<persName><forename type="first">Michael</forename><surname>Arbel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anna</forename><surname>Korba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Adil</forename><surname>Salim</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Gretton</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b14">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Bunne</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b15">
+	<analytic>
+		<title level="a" type="main">Proximal optimal transport modeling of population dynamics</title>
+		<author>
+			<persName><forename type="first">Charlotte</forename><surname>Bunne</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laetitia</forename><surname>Papaxanthos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Andreas</forename><surname>Krause</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Cuturi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Artificial Intelligence and Statistics</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="6511" to="6528"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b16">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Butcher</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1964">1964</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b17">
+	<analytic>
+		<title level="a" type="main">Implicit runge-kutta processes</title>
+		<author>
+			<persName><forename type="first">C</forename><surname>John</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Butcher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Mathematics of computation</title>
+		<imprint>
+			<biblScope unit="volume">18</biblScope>
+			<biblScope unit="issue">85</biblScope>
+			<biblScope unit="page" from="50" to="64"/>
+			<date type="published" when="1964">1964</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b18">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Choi</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b19">
+	<analytic>
+		<title level="a" type="main">Density ratio estimation via infinitesimal classification</title>
+		<author>
+			<persName><forename type="first">Kristy</forename><surname>Choi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chenlin</forename><surname>Meng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefano</forename><surname>Ermon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Artificial Intelligence and Statistics</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="2552" to="2573"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b20">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Cuturi</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b21">
+	<analytic>
+		<title level="a" type="main">Sinkhorn distances: Lightspeed computation of optimal transport</title>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Cuturi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">26</biblScope>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b22">
+	<monogr>
+		<author>
+			<persName><forename type="first">Seljak</forename><surname>Dai</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2007.00674</idno>
+		<title level="m">Sliced iterative normalizing flows</title>
+		<imprint>
+			<date type="published" when="2020">2020. 2020</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+	<note>Biwei Dai and Uros Seljak</note>
+</biblStruct>
+
+<biblStruct xml:id="b23">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Damodaran</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b24">
+	<analytic>
+		<title level="a" type="main">Deepjdot: Deep joint distribution optimal transport for unsupervised domain adaptation</title>
+		<author>
+			<persName><forename type="first">Benjamin</forename><surname>Bharath Bhushan Damodaran</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Kellenberger</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Devis</forename><surname>Flamary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Tuia</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Courty</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the European conference on computer vision (ECCV)</title>
+		<meeting>the European conference on computer vision (ECCV)</meeting>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="447" to="463"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b25">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Das</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b26">
+	<monogr>
+		<title level="m" type="main">Image generation with shortest path diffusion</title>
+		<author>
+			<persName><forename type="first">Ayan</forename><surname>Das</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stathi</forename><surname>Fotiadis</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anil</forename><surname>Batra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Farhang</forename><surname>Nabiei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fengting</forename><surname>Liao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sattar</forename><surname>Vakili</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Da-Shan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alberto</forename><surname>Shiu</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Bernacchia</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2306.00501</idno>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b27">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Deja</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b28">
+	<analytic>
+		<title level="a" type="main">Endto-end sinkhorn autoencoder with noise generator</title>
+		<author>
+			<persName><forename type="first">Kamil</forename><surname>Deja</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jan</forename><surname>Dubiński</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Piotr</forename><surname>Nowak</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sandro</forename><surname>Wenzel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Przemysław</forename><surname>Spurek</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomasz</forename><surname>Trzcinski</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">IEEE Access</title>
+		<imprint>
+			<biblScope unit="volume">9</biblScope>
+			<biblScope unit="page" from="7211" to="7219"/>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b29">
+	<analytic>
+		<title level="a" type="main">Diffusion models beat gans on image synthesis</title>
+		<author>
+			<persName><forename type="first">Nichol</forename><forename type="middle">;</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Prafulla</forename><surname>Dhariwal</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Nichol</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Advances in neural information processing systems</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="8780" to="8794"/>
+			<date type="published" when="2021">2021. 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b30">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Du</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b31">
+	<monogr>
+		<title level="m" type="main">Nonparametric generative modeling with conditional sliced-wasserstein flows</title>
+		<author>
+			<persName><forename type="first">Chao</forename><surname>Du</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianbo</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tianyu</forename><surname>Pang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Min</forename><surname>Yan Shuicheng</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b32">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Fan</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b33">
+	<analytic>
+		<title level="a" type="main">Variational wasserstein gradient flow</title>
+		<author>
+			<persName><forename type="first">Jiaojiao</forename><surname>Fan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Qinsheng</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Amirhossein</forename><surname>Taghvaei</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yongxin</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="6185" to="6215"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b34">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Fatras</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b35">
+	<monogr>
+		<title level="m" type="main">Learning with minibatch wasserstein: asymptotic and gradient properties</title>
+		<author>
+			<persName><forename type="first">Kilian</forename><surname>Fatras</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Younes</forename><surname>Zine</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Flamary</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rémi</forename><surname>Gribonval</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicolas</forename><surname>Courty</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1910.04091</idno>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b36">
+	<analytic>
+		<title level="a" type="main">Unbalanced minibatch optimal transport; applications to domain adaptation</title>
+		<author>
+			<persName><surname>Fatras</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2021">2021. 2021</date>
+			<biblScope unit="page" from="3186" to="3197"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b37">
+	<monogr>
+		<author>
+			<persName><surname>Fatras</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2101.01792</idno>
+		<title level="m">Minibatch optimal transport distances; analysis and applications</title>
+		<imprint>
+			<date type="published" when="2021">2021. 2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b38">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Feydy</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b39">
+	<analytic>
+		<title level="a" type="main">Interpolating between optimal transport and mmd using sinkhorn divergences</title>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Feydy</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thibault</forename><surname>Séjourné</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Franc ¸ois-Xavier</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shun-Ichi</forename><surname>Vialard</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alain</forename><surname>Amari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Trouvé</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Peyré</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The 22nd International Conference on Artificial Intelligence and Statistics</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2681" to="2690"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b40">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Folland</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1999">1999</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b41">
+	<monogr>
+		<title level="m" type="main">Real analysis: modern techniques and their applications</title>
+		<author>
+			<persName><surname>Gerald B Folland</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1999">1999</date>
+			<publisher>John Wiley &amp; Sons</publisher>
+			<biblScope unit="volume">40</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b42">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Gao</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b43">
+	<analytic>
+		<title level="a" type="main">Deep generative learning via variational gradient flow</title>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuling</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yao</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Can</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Shunkang</forename><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2093" to="2101"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b44">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Gao</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b45">
+	<analytic>
+		<title level="a" type="main">Deep generative learning via euler particle transport</title>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Gao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jian</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuling</forename><surname>Jiao</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jin</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xiliang</forename><surname>Lu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhijian</forename><surname>Yang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Mathematical and Scientific Machine Learning</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2022">2022</date>
+			<biblScope unit="page" from="336" to="368"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b46">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Genevay</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b47">
+	<analytic>
+		<title level="a" type="main">Stochastic optimization for large-scale optimal transport</title>
+		<author>
+			<persName><forename type="first">Aude</forename><surname>Genevay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Cuturi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Peyré</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Francis</forename><surname>Bach</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b48">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Genevay</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b49">
+	<analytic>
+		<title level="a" type="main">Learning generative models with sinkhorn divergences</title>
+		<author>
+			<persName><forename type="first">Aude</forename><surname>Genevay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Peyré</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Cuturi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">International Conference on Artificial Intelligence and Statistics</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2018">2018</date>
+			<biblScope unit="page" from="1608" to="1617"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b50">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Goodfellow</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b51">
+	<analytic>
+		<title level="a" type="main">Generative adversarial nets</title>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jean</forename><surname>Pouget-Abadie</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mehdi</forename><surname>Mirza</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bing</forename><surname>Xu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Warde-Farley</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sherjil</forename><surname>Ozair</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aaron</forename><surname>Courville</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">27</biblScope>
+			<date type="published" when="2014">2014</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b52">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Grathwohl</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b53">
+	<monogr>
+		<title level="m" type="main">Ffjord: Freeform continuous dynamics for scalable reversible generative models</title>
+		<author>
+			<persName><forename type="first">Will</forename><surname>Grathwohl</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ricky Tq</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jesse</forename><surname>Bettencourt</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ilya</forename><surname>Sutskever</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Duvenaud</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1810.01367</idno>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b54">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Heng</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b55">
+	<monogr>
+		<title level="m" type="main">Deep generative wasserstein gradient flows</title>
+		<author>
+			<persName><forename type="first">Alvin</forename><surname>Heng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abdul</forename><surname>Fatir Ansari</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Harold</forename><surname>Soh</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2022">2022</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b56">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Heusel</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b57">
+	<analytic>
+		<title level="a" type="main">Gans trained by a two time-scale update rule converge to a local nash equilibrium</title>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Heusel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hubert</forename><surname>Ramsauer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Thomas</forename><surname>Unterthiner</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Bernhard</forename><surname>Nessler</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Sepp</forename><surname>Hochreiter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">30</biblScope>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b58">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Ho</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b59">
+	<analytic>
+		<title level="a" type="main">Denoising diffusion probabilistic models</title>
+		<author>
+			<persName><forename type="first">Jonathan</forename><surname>Ho</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ajay</forename><surname>Jain</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Pieter</forename><surname>Abbeel</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="6840" to="6851"/>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b60">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Hsieh</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b61">
+	<analytic>
+		<title level="a" type="main">The limits of min-max optimization algorithms: Convergence to spurious non-critical sets</title>
+		<author>
+			<persName><forename type="first">Ya-Ping</forename><surname>Hsieh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Panayotis</forename><surname>Mertikopoulos</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Volkan</forename><surname>Cevher</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="4337" to="4348"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b62">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Jordan</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="1998">1998</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b63">
+	<analytic>
+		<title level="a" type="main">The variational formulation of the fokker-planck equation</title>
+		<author>
+			<persName><forename type="first">Richard</forename><surname>Jordan</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Kinderlehrer</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Felix</forename><surname>Otto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">SIAM journal on mathematical analysis</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<biblScope unit="issue">1</biblScope>
+			<biblScope unit="page" from="1" to="17"/>
+			<date type="published" when="1998">1998</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b64">
+	<monogr>
+		<author>
+			<persName><surname>Kalantari</surname></persName>
+		</author>
+		<title level="m">Iraj Kalantari. Induction over the Continuum</title>
+		<meeting><address><addrLine>Netherlands; Dordrecht</addrLine></address></meeting>
+		<imprint>
+			<publisher>Springer</publisher>
+			<date type="published" when="2007">2007. 2007</date>
+			<biblScope unit="page" from="145" to="154"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b65">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Komatsu</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b66">
+	<analytic>
+		<title level="a" type="main">Multi-source domain adaptation with sinkhorn barycenter</title>
+		<author>
+			<persName><forename type="first">Tatsuya</forename><surname>Komatsu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tomoko</forename><surname>Matsui</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Junbin</forename><surname>Gao</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">2021 29th European Signal Processing Conference (EU-SIPCO)</title>
+		<imprint>
+			<publisher>IEEE</publisher>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="1371" to="1375"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b67">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Korotin</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b68">
+	<analytic>
+		<title level="a" type="main">Do neural optimal transport solvers work? a continuous wasserstein-2 benchmark</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Korotin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingxiao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aude</forename><surname>Genevay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Justin</forename><forename type="middle">M</forename><surname>Solomon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Filippov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Evgeny</forename><surname>Burnaev</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="14593" to="14605"/>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b69">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Li</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b70">
+	<analytic>
+		<title level="a" type="main">Mmd gan: Towards deeper understanding of moment matching network</title>
+		<author>
+			<persName><forename type="first">Chun-Liang</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wei-Cheng</forename><surname>Chang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yu</forename><surname>Cheng</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yiming</forename><surname>Yang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Barnabás</forename><surname>Póczos</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">30</biblScope>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b71">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Lipman</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b72">
+	<analytic>
+		<title level="a" type="main">Flow matching for generative modeling</title>
+		<author>
+			<persName><forename type="first">Yaron</forename><surname>Lipman</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ricky</forename><forename type="middle">T Q</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Heli</forename><surname>Ben-Hamu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Le</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Eleventh ICLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b73">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Liu</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b74">
+	<analytic>
+		<title level="a" type="main">Flow straight and fast: Learning to generate and transfer data with rectified flow</title>
+		<author>
+			<persName><forename type="first">Xingchao</forename><surname>Liu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chengyue</forename><surname>Gong</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Liu</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The Eleventh ICLR</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b75">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Liutkus</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b76">
+	<analytic>
+		<title level="a" type="main">Slicedwasserstein flows: Nonparametric generative modeling via optimal transport and diffusions</title>
+		<author>
+			<persName><forename type="first">Antoine</forename><surname>Liutkus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Umut</forename><surname>Simsekli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Szymon</forename><surname>Majewski</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alain</forename><surname>Durmus</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fabian-Robert</forename><surname>Stöter</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="4104" to="4113"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b77">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Luise</forename></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b78">
+	<analytic>
+		<title level="a" type="main">Sinkhorn barycenters with free support via frank-wolfe algorithm</title>
+		<author>
+			<persName><forename type="first">Giulia</forename><surname>Luise</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saverio</forename><surname>Salzo</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Massimiliano</forename><surname>Pontil</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Carlo</forename><surname>Ciliberto</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b79">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mnih</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b80">
+	<monogr>
+		<title level="m" type="main">Playing atari with deep reinforcement learning</title>
+		<author>
+			<persName><forename type="first">Volodymyr</forename><surname>Mnih</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Koray</forename><surname>Kavukcuoglu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alex</forename><surname>Graves</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ioannis</forename><surname>Antonoglou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Daan</forename><surname>Wierstra</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Martin</forename><surname>Riedmiller</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1312.5602</idno>
+		<imprint>
+			<date type="published" when="2013">2013</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b81">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mokrov</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b82">
+	<analytic>
+		<title level="a" type="main">Large-scale wasserstein gradient flows</title>
+		<author>
+			<persName><forename type="first">Petr</forename><surname>Mokrov</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Korotin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Lingxiao</forename><surname>Li</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aude</forename><surname>Genevay</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Justin</forename><forename type="middle">M</forename><surname>Solomon</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Evgeny</forename><surname>Burnaev</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="15243" to="15256"/>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b83">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Rigotti</forename><surname>Mroueh</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b84">
+	<analytic>
+		<title level="a" type="main">Unbalanced sobolev descent</title>
+		<author>
+			<persName><forename type="first">Youssef</forename><surname>Mroueh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Mattia</forename><surname>Rigotti</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="17034" to="17043"/>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b85">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Mroueh</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b86">
+	<analytic>
+		<title level="a" type="main">Sobolev descent</title>
+		<author>
+			<persName><forename type="first">Youssef</forename><surname>Mroueh</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tom</forename><surname>Sercu</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Anant</forename><surname>Raj</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">The 22nd International Conference on Artificial Intelligence and Statistics</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2019">2019</date>
+			<biblScope unit="page" from="2976" to="2985"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b87">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Pai</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b88">
+	<analytic>
+		<title level="a" type="main">Fast sinkhorn filters: Using matrix scaling for non-rigid shape correspondence with functional maps</title>
+		<author>
+			<persName><forename type="first">Gautam</forename><surname>Pai</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jing</forename><surname>Ren</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Simone</forename><surname>Melzi</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Peter</forename><surname>Wonka</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maks</forename><surname>Ovsjanikov</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition</title>
+		<meeting>the IEEE/CVF Conference on Computer Vision and Pattern Recognition</meeting>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+			<biblScope unit="page" from="384" to="393"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b89">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Patrini</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b90">
+	<analytic>
+		<title level="a" type="main">Sinkhorn autoencoders</title>
+		<author>
+			<persName><forename type="first">Giorgio</forename><surname>Patrini</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Rianne</forename><surname>Van Den</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Patrick</forename><surname>Berg</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marcello</forename><surname>Forre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Samarth</forename><surname>Carioni</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Max</forename><surname>Bhargav</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Welling</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Frank</forename><surname>Genewein</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Nielsen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Uncertainty in Artificial Intelligence</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2020">2020</date>
+			<biblScope unit="page" from="733" to="743"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b91">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Peyré</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b92">
+	<analytic>
+		<title level="a" type="main">Computational optimal transport</title>
+		<author>
+			<persName><forename type="first">Gabriel</forename><surname>Peyré</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marco</forename><surname>Cuturi</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">Center for Research in Economics and Statistics Working Papers</title>
+		<imprint>
+			<date type="published" when="2017">2017-86. 2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b93">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Bruti-Liberati</forename><surname>Platen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b94">
+	<monogr>
+		<title level="m" type="main">Numerical solution of stochastic differential equations with jumps in finance</title>
+		<author>
+			<persName><forename type="first">Eckhard</forename><surname>Platen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nicola</forename><surname>Bruti-Liberati</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2010">2010</date>
+			<publisher>Springer Science &amp; Business Media</publisher>
+			<biblScope unit="volume">64</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b95">
+	<monogr>
+		<author>
+			<persName><surname>Pooladian</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2304.14772</idno>
+		<title level="m">Multisample flow matching: Straightening flows with minibatch couplings</title>
+		<imprint>
+			<date type="published" when="2023">2023. 2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b96">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Salimans</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b97">
+	<analytic>
+		<title level="a" type="main">Improved techniques for training gans</title>
+		<author>
+			<persName><forename type="first">Tim</forename><surname>Salimans</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ian</forename><surname>Goodfellow</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Wojciech</forename><surname>Zaremba</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Vicki</forename><surname>Cheung</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alec</forename><surname>Radford</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Xi</forename><surname>Chen</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">29</biblScope>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b98">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Santambrogio</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2015">2015</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b99">
+	<analytic>
+		<title level="a" type="main">Optimal transport for applied mathematicians</title>
+		<author>
+			<persName><forename type="first">Filippo</forename><surname>Santambrogio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Birkäuser</title>
+		<imprint>
+			<biblScope unit="volume">55</biblScope>
+			<biblScope unit="issue">58-63</biblScope>
+			<biblScope unit="page">94</biblScope>
+			<date type="published" when="2015">2015</date>
+			<pubPlace>NY</pubPlace>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b100">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Santambrogio</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b101">
+	<analytic>
+		<title level="a" type="main">{Euclidean, metric, and Wasserstein} gradient flows: an overview</title>
+		<author>
+			<persName><forename type="first">Filippo</forename><surname>Santambrogio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">Bulletin of Mathematical Sciences</title>
+		<imprint>
+			<biblScope unit="volume">7</biblScope>
+			<biblScope unit="page" from="87" to="154"/>
+			<date type="published" when="2017">2017</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b102">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Shaul</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b103">
+	<analytic>
+		<title level="a" type="main">On kinetic optimal probability paths for generative models</title>
+		<author>
+			<persName><forename type="first">Neta</forename><surname>Shaul</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ricky Tq</forename><surname>Chen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Maximilian</forename><surname>Nickel</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Matthew</forename><surname>Le</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yaron</forename><surname>Lipman</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML</title>
+		<imprint>
+			<publisher>PMLR</publisher>
+			<date type="published" when="2023">2023</date>
+			<biblScope unit="page" from="30883" to="30907"/>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b104">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Shen</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b105">
+	<analytic>
+		<title level="a" type="main">Sinkhorn barycenter via functional gradient descent</title>
+		<author>
+			<persName><forename type="first">Zebang</forename><surname>Shen</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Zhenfu</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Alejandro</forename><surname>Ribeiro</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Hamed</forename><surname>Hassani</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">33</biblScope>
+			<biblScope unit="page" from="986" to="996"/>
+			<date type="published" when="2020">2020</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b106">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Silver</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b107">
+	<analytic>
+		<title level="a" type="main">Mastering the game of go with deep neural networks and tree search</title>
+		<author>
+			<persName><forename type="first">David</forename><surname>Silver</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Aja</forename><surname>Huang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Chris</forename><forename type="middle">J</forename><surname>Maddison</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Arthur</forename><surname>Guez</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Laurent</forename><surname>Sifre</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">George</forename><surname>Van Den</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Julian</forename><surname>Driessche</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ioannis</forename><surname>Schrittwieser</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Veda</forename><surname>Antonoglou</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Marc</forename><surname>Panneershelvam</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Lanctot</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">nature</title>
+		<imprint>
+			<biblScope unit="volume">529</biblScope>
+			<biblScope unit="issue">7587</biblScope>
+			<biblScope unit="page" from="484" to="489"/>
+			<date type="published" when="2016">2016</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b108">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Ermon</forename><surname>Song</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b109">
+	<analytic>
+		<title level="a" type="main">Generative modeling by estimating gradients of the data distribution</title>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefano</forename><surname>Ermon</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">32</biblScope>
+			<date type="published" when="2019">2019</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b110">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Song</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b111">
+	<analytic>
+		<title level="a" type="main">Score-based generative modeling through stochastic differential equations</title>
+		<author>
+			<persName><forename type="first">Yang</forename><surname>Song</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jascha</forename><surname>Sohl-Dickstein</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">P</forename><surname>Diederik</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Abhishek</forename><surname>Kingma</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Stefano</forename><surname>Kumar</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Ben</forename><surname>Ermon</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Poole</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICLR</title>
+		<imprint>
+			<date type="published" when="2021">2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b112">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Mayers</forename><surname>Süli</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2003">2003</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b113">
+	<monogr>
+		<author>
+			<persName><forename type="first">Endre</forename><surname>Süli</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">David</forename><forename type="middle">F</forename><surname>Mayers</surname></persName>
+		</author>
+		<title level="m">An introduction to numerical analysis</title>
+		<imprint>
+			<publisher>Cambridge university press</publisher>
+			<date type="published" when="2003">2003</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b114">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Tong</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b115">
+	<analytic>
+		<title level="a" type="main">Improving and generalizing flowbased generative models with minibatch optimal transport</title>
+		<author>
+			<persName><forename type="first">Alexander</forename><surname>Tong</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Nikolay</forename><surname>Malkin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guillaume</forename><surname>Huguet</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yanlei</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Jarrid</forename><surname>Rector-Brooks</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Fatras</forename><surname>Kilian</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Guy</forename><surname>Wolf</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yoshua</forename><surname>Bengio</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="m">ICML Workshop on New Frontiers in Learning, Control, and Dynamical Systems</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b116">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Others</forename><surname>Villani</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b117">
+	<monogr>
+		<title level="m" type="main">Optimal transport: old and new</title>
+		<author>
+			<persName><forename type="first">Cédric</forename><surname>Villani</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2009">2009</date>
+			<publisher>Springer</publisher>
+			<biblScope unit="volume">338</biblScope>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b118">
+	<monogr>
+		<title/>
+		<author>
+			<persName><surname>Wang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b119">
+	<monogr>
+		<author>
+			<persName><forename type="first">Wei</forename><surname>Wang</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Yuan</forename><surname>Sun</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Saman</forename><surname>Halgamuge</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:1812.09916</idno>
+		<title level="m">Improving mmd-gan training with repulsive loss function</title>
+		<imprint>
+			<date type="published" when="2018">2018</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b120">
+	<monogr>
+		<title/>
+		<author>
+			<persName><forename type="first">Katsoulakis</forename><surname>Zhang</surname></persName>
+		</author>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+<biblStruct xml:id="b121">
+	<monogr>
+		<author>
+			<persName><forename type="first">J</forename><surname>Benjamin</surname></persName>
+		</author>
+		<author>
+			<persName><forename type="first">Markos</forename><forename type="middle">A</forename><surname>Zhang</surname></persName>
+		</author>
+		<author>
+			<persName><surname>Katsoulakis</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2304.13534</idno>
+		<title level="m">A mean-field games laboratory for generative modeling</title>
+		<imprint>
+			<date type="published" when="2023">2023</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b122">
+	<monogr>
+		<title level="m" type="main">Dpvi: A dynamic-weight particle-based variational inference framework</title>
+		<author>
+			<persName><surname>Zhang</surname></persName>
+		</author>
+		<idno type="arXiv">arXiv:2112.00945</idno>
+		<imprint>
+			<date type="published" when="2021">2021. 2021</date>
+		</imprint>
+	</monogr>
+	<note type="report_type">arXiv preprint</note>
+</biblStruct>
+
+<biblStruct xml:id="b123">
+	<analytic>
+		<title level="a" type="main">Wasserstein flow meets replicator dynamics: A mean-field analysis of representation learning in actor-critic</title>
+		<author>
+			<persName><surname>Zhang</surname></persName>
+		</author>
+	</analytic>
+	<monogr>
+		<title level="j">NeurIPS</title>
+		<imprint>
+			<biblScope unit="volume">34</biblScope>
+			<biblScope unit="page" from="15993" to="16006"/>
+			<date type="published" when="2021">2021. 2021</date>
+		</imprint>
+	</monogr>
+</biblStruct>
+
+				</listBibl>
+			</div>
+		</back>
+	</text>
+</TEI>
